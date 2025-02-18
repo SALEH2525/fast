@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Speed Test</title>
+    <style>
+        :root {
+            --primary-color: #00ff88;
+            --background-color: #1a1a1a;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: var(--background-color);
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        .speed-container {
+            margin: 40px 0;
+        }
+
+        .speed-text {
+            font-size: 72px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .unit-toggle {
+            font-size: 24px;
+            color: #888;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .progress-bar {
+            width: 300px;
+            height: 10px;
+            background-color: #333;
+            border-radius: 5px;
+            margin: 20px auto;
+            overflow: hidden;
+        }
+
+        .progress {
+            width: 0%;
+            height: 100%;
+            background-color: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        .details {
+            text-align: left;
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #252525;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .test-phase {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #333;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: var(--background-color);
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.3s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="speed-container">
+            <div class="speed-text">
+                <span id="speed">0</span>
+                <span class="unit-toggle" onclick="toggleUnit()">Mbps</span>
+            </div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+
+        <div id="status">Initializing speed test...</div>
+
+        <div class="details" id="details">
+            <h3>Test Details:</h3>
+            <div id="phases"></div>
+            <div class="test-phase">
+                <div>Total Data Transferred: <span id="total-data">0 MB</span></div>
+                <div>Test Duration: <span id="duration">0 seconds</span></div>
+                <div>Average Speed: <span id="average-speed">0 Mbps</span></div>
+            </div>
+        </div>
+
+        <button onclick="startTest()">Start New Test</button>
+    </div>
+
+    <script>
+        let currentUnit = 'Mbps';
+        let totalBytes = 0;
+        let startTime;
+        
+        const testFiles = [
+            'https://source.unsplash.com/random/800x600',
+            'https://source.unsplash.com/random/1000x800',
+            'https://source.unsplash.com/random/1200x900',
+            'https://source.unsplash.com/random/1600x1200'
+        ];
+
+        async function measureLatency() {
+            const start = Date.now();
+            await fetch('https://source.unsplash.com/random?ping=' + Math.random());
+            return Date.now() - start;
+        }
+
+        async function downloadTest(file) {
+            const start = Date.now();
+            const response = await fetch(file + '?test=' + Math.random());
+            const blob = await response.blob();
+            const duration = (Date.now() - start) / 1000;
+            return {
+                size: blob.size,
+                duration: duration
+            };
+        }
+
+        function formatSpeed(speed) {
+            if(currentUnit === 'Gbps') return (speed / 1024).toFixed(2);
+            return speed.toFixed(2);
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progress').style.width = percent + '%';
+        }
+
+        function toggleUnit() {
+            currentUnit = currentUnit === 'Mbps' ? 'Gbps' : 'Mbps';
+            document.querySelector('.unit-toggle').textContent = currentUnit;
+            updateSpeedDisplay();
+        }
+
+        function updateSpeedDisplay() {
+            const speedElement = document.getElementById('speed');
+            const currentSpeed = parseFloat(speedElement.dataset.rawSpeed || 0);
+            speedElement.textContent = formatSpeed(currentSpeed);
+        }
+
+        async function startTest() {
+            document.getElementById('details').style.display = 'none';
+            document.getElementById('status').textContent = 'Measuring latency...';
+            updateProgress(10);
+            
+            try {
+                // Latency test
+                const latency = await measureLatency();
+                document.getElementById('status').textContent = `Latency: ${latency}ms`;
+                
+                // Download tests
+                totalBytes = 0;
+                let totalDuration = 0;
+                const phasesElement = document.getElementById('phases');
+                phasesElement.innerHTML = '';
+                
+                startTime = Date.now();
+                
+                for(let i = 0; i < testFiles.length; i++) {
+                    document.getElementById('status').textContent = `Testing download speed (${i+1}/${testFiles.length})...`;
+                    updateProgress(10 + ((i+1) * 20));
+                    
+                    const result = await downloadTest(testFiles[i]);
+                    totalBytes += result.size;
+                    totalDuration += result.duration;
+                    
+                    const phaseSpeed = (result.size * 8 / result.duration / 1024 / 1024).toFixed(2);
+                    phasesElement.innerHTML += `
+                        <div class="test-phase">
+                            Test ${i+1}: ${phaseSpeed} Mbps (${(result.size/1024/1024).toFixed(2)} MB in ${result.duration.toFixed(2)}s)
+                        </div>
+                    `;
+                }
+
+                const totalTime = (Date.now() - startTime) / 1000;
+                const averageSpeed = (totalBytes * 8 / totalDuration / 1024 / 1024);
+                
+                document.getElementById('speed').dataset.rawSpeed = averageSpeed;
+                updateSpeedDisplay();
+                
+                document.getElementById('total-data').textContent = `${(totalBytes/1024/1024).toFixed(2)} MB`;
+                document.getElementById('duration').textContent = `${totalTime.toFixed(2)} seconds`;
+                document.getElementById('average-speed').textContent = `${averageSpeed.toFixed(2)} Mbps`;
+                
+                document.getElementById('status').textContent = 'Test completed!';
+                document.getElementById('details').style.display = 'block';
+                updateProgress(100);
+                
+            } catch(error) {
+                document.getElementById('status').textContent = 'Error during test';
+                console.error(error);
+            }
+        }
+
+        // Start test automatically
+        startTest();
+    </script>
+</body>
+</html>

@@ -1,2 +1,0 @@
-# fast
-Internet speed test
